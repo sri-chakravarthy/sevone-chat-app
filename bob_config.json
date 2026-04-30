@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "sevone-mysql": {
+      "command": "python",
+      "args": ["-m", "src.server"],
+      "cwd": "/Users/srikanthchakravarthy/Documents/Projects/github-general/BobAgent-1/sevone-chat-app-mysql/mcp-server",
+      "env": {
+        "MYSQL_HOST": "localhost",
+        "MYSQL_PORT": "3306",
+        "MYSQL_DATABASE": "sevone_db",
+        "MYSQL_USER": "root",
+        "MYSQL_PASSWORD": "${MYSQL_PASSWORD}"
+      }
+    }
+  }
+}
