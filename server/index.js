@@ -124,9 +124,7 @@ async function executeBobCLI(res, message, mode) {
       // Extract content between ---output--- tags if present
       let cleanedOutput = fullOutput;
       const outputMatch = fullOutput.match(/---output---\s*([\s\S]*?)\s*---output---/);
-      if (outputMatch) {
-        cleanedOutput = outputMatch[1].trim();
-      }
+
 
       // Send final response only
       res.write(`data: ${JSON.stringify({
