@@ -138,9 +138,7 @@ function App() {
             appendToAssistantMessage(data.chunk, currentMode);
           }
 
-          if (data.stream === 'stderr' && data.chunk?.trim()) {
-            addSystemMessage(`Bob step: ${data.chunk.trim()}`, 'system');
-          }
+          // Removed stderr system message display
         },
         onBobResponse: (data) => {
           setIsTyping(false);
@@ -148,7 +146,7 @@ function App() {
         },
         onBobComplete: (data) => {
           setIsTyping(false);
-          addSystemMessage(`Bob completed: ${data.status}`, 'system');
+          // Removed completion system message display
           resetStreamingAssistantMessage();
           console.log('Bob completed:', data.status);
         },
@@ -159,9 +157,8 @@ function App() {
           resetStreamingAssistantMessage();
         },
         onBobStep: (data) => {
-          if (data.message) {
-            addSystemMessage(`Bob step: ${data.message}`, 'system');
-          }
+          // Removed step system message display
+          console.log('Bob step:', data.message);
         }
       });
     } catch (error) {
