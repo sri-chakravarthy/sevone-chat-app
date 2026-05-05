@@ -1,24 +1,15 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
 const cors = require('cors');
 const { spawn } = require('child_process');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
-});
 
 app.use(cors());
 app.use(express.json());
 
-// Store active Bob processes per socket
+// Store active Bob processes per request ID
 const bobProcesses = new Map();
 
 // Health check endpoint
@@ -26,71 +17,54 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
+// Chat endpoint - POST request to send messages
+app.post('/api/chat', async (req, res) => {
+  const { message, mode = 'code' } = req.body;
 
-  // Handle chat messages
-  socket.on('chat_message', async (data) => {
-    const { message, mode } = data;
-    console.log(`Received message from ${socket.id}:`, message);
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
 
-    try {
-      // Emit acknowledgment
-      socket.emit('message_received', { 
-        id: Date.now(), 
-        message, 
-        timestamp: new Date().toISOString() 
-      });
+  console.log(`Received message:`, message);
 
-      // Process message with Bob shell
-      await processBobCommand(socket, message, mode);
-    } catch (error) {
-      console.error('Error processing message:', error);
-      socket.emit('error', { 
-        message: 'Failed to process your request', 
-        error: error.message 
-      });
-    }
-  });
+  try {
+    // Set headers for streaming response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-  // Handle mode switching
-  socket.on('switch_mode', (data) => {
-    console.log(`Mode switch requested for ${socket.id}:`, data.mode);
-    socket.emit('mode_switched', { mode: data.mode });
-  });
+    // Send initial acknowledgment
+    res.write(`data: ${JSON.stringify({ 
+      type: 'message_received', 
+      id: Date.now(), 
+      message, 
+      timestamp: new Date().toISOString() 
+    })}\n\n`);
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-    // Clean up any active Bob processes
-    if (bobProcesses.has(socket.id)) {
-      const process = bobProcesses.get(socket.id);
-      process.kill();
-      bobProcesses.delete(socket.id);
-    }
-  });
+    // Send thinking status
+    res.write(`data: ${JSON.stringify({ 
+      type: 'bob_thinking', 
+      status: 'processing' 
+    })}\n\n`);
+
+    // Execute Bob command
+    await executeBobCLI(res, message, mode);
+
+  } catch (error) {
+    console.error('Error processing message:', error);
+    res.write(`data: ${JSON.stringify({ 
+      type: 'error', 
+      message: 'Failed to process your request', 
+      error: error.message 
+    })}\n\n`);
+    res.end();
+  }
 });
-
-/**
- * Process command using Bob shell
- */
-async function processBobCommand(socket, message, mode = 'code') {
-  return new Promise((resolve, reject) => {
-    // Emit thinking status
-    socket.emit('bob_thinking', { status: 'processing' });
-
-    // Execute actual Bob CLI command
-    executeBobCLI(socket, message, mode)
-      .then(resolve)
-      .catch(reject);
-  });
-}
 
 /**
  * Execute Bob CLI command
  */
-async function executeBobCLI(socket, message, mode) {
+async function executeBobCLI(res, message, mode) {
   return new Promise((resolve, reject) => {
     // Map mode to Bob chat mode
     const bobMode = mode === 'SQL-expert' ? 'data-expert' : 'code';
@@ -123,10 +97,11 @@ async function executeBobCLI(socket, message, mode) {
       output += chunk;
       
       // Stream output to client in real-time
-      socket.emit('bob_stream', {
+      res.write(`data: ${JSON.stringify({
+        type: 'bob_stream',
         chunk: chunk,
         timestamp: new Date().toISOString()
-      });
+      })}\n\n`);
     });
 
     // Capture stderr (Bob may output progress/status here)
@@ -136,11 +111,12 @@ async function executeBobCLI(socket, message, mode) {
       console.error('Bob stderr:', chunk);
       
       // Stream stderr to client as well (for progress updates)
-      socket.emit('bob_stream', {
+      res.write(`data: ${JSON.stringify({
+        type: 'bob_stream',
         chunk: chunk,
         timestamp: new Date().toISOString(),
-        isError: false // It's often just progress info, not actual errors
-      });
+        isError: false
+      })}\n\n`);
     });
 
     // Handle process completion
@@ -156,27 +132,38 @@ async function executeBobCLI(socket, message, mode) {
         }
         
         // Success - send final response
-        socket.emit('bob_response', {
+        res.write(`data: ${JSON.stringify({
+          type: 'bob_response',
           id: Date.now(),
           message: cleanedOutput || 'Bob completed successfully but returned no output.',
           mode: mode,
-          timestamp: new Date().toISOString(),
-          type: 'assistant'
-        });
+          timestamp: new Date().toISOString()
+        })}\n\n`);
         
-        socket.emit('bob_complete', { status: 'completed' });
+        res.write(`data: ${JSON.stringify({ 
+          type: 'bob_complete', 
+          status: 'completed' 
+        })}\n\n`);
+        
+        res.end();
         resolve(cleanedOutput);
       } else {
         // Error
         const errorMessage = `Bob process exited with code ${code}${errorOutput ? ': ' + errorOutput : ''}`;
         console.error(errorMessage);
         
-        socket.emit('error', {
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
           message: 'Bob encountered an error processing your request',
           error: errorMessage
-        });
+        })}\n\n`);
         
-        socket.emit('bob_complete', { status: 'error' });
+        res.write(`data: ${JSON.stringify({ 
+          type: 'bob_complete', 
+          status: 'error' 
+        })}\n\n`);
+        
+        res.end();
         reject(new Error(errorMessage));
       }
     });
@@ -185,40 +172,46 @@ async function executeBobCLI(socket, message, mode) {
     bobProcess.on('error', (error) => {
       console.error('Bob process error:', error);
       
-      socket.emit('error', {
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
         message: 'Failed to execute Bob command',
         error: error.message
-      });
+      })}\n\n`);
       
-      socket.emit('bob_complete', { status: 'error' });
+      res.write(`data: ${JSON.stringify({ 
+        type: 'bob_complete', 
+        status: 'error' 
+      })}\n\n`);
+      
+      res.end();
       reject(error);
     });
 
-    // Store process reference for cleanup
-    bobProcesses.set(socket.id, bobProcess);
-
     // Set timeout (5 minutes)
     setTimeout(() => {
-      if (bobProcesses.has(socket.id)) {
-        bobProcess.kill();
-        bobProcesses.delete(socket.id);
-        
-        socket.emit('error', {
-          message: 'Bob command timed out after 5 minutes'
-        });
-        
-        socket.emit('bob_complete', { status: 'timeout' });
-        reject(new Error('Command timeout'));
-      }
+      bobProcess.kill();
+      
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        message: 'Bob command timed out after 5 minutes'
+      })}\n\n`);
+      
+      res.write(`data: ${JSON.stringify({ 
+        type: 'bob_complete', 
+        status: 'timeout' 
+      })}\n\n`);
+      
+      res.end();
+      reject(new Error('Command timeout'));
     }, 300000);
   });
 }
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`WebSocket server ready for connections`);
+  console.log(`REST API server ready for connections`);
 });
 
 // Made with Bob

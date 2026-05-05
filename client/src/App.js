@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import socketService from './services/socketService';
+import apiService from './services/apiService';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import TypingIndicator from './components/TypingIndicator';
@@ -14,58 +14,15 @@ function App() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    // Connect to socket server
-    const socket = socketService.connect();
+    // Check server health on mount
+    checkServerHealth();
 
-    socket.on('connect', () => {
-      setIsConnected(true);
-      setError(null);
-      addSystemMessage('Connected to Bob server');
-    });
+    // Set up periodic health checks
+    const healthCheckInterval = setInterval(checkServerHealth, 30000); // Every 30 seconds
 
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-      addSystemMessage('Disconnected from server');
-    });
-
-    // Listen for message acknowledgment
-    socketService.onMessageReceived((data) => {
-      console.log('Message received:', data);
-    });
-
-    // Listen for Bob thinking
-    socketService.onBobThinking(() => {
-      setIsTyping(true);
-    });
-
-    // Listen for Bob response
-    socketService.onBobResponse((data) => {
-      setIsTyping(false);
-      addMessage(data.message, 'assistant', data.mode);
-    });
-
-    // Listen for Bob completion
-    socketService.onBobComplete(() => {
-      setIsTyping(false);
-    });
-
-    // Listen for mode switch
-    socketService.onModeSwitched((data) => {
-      setCurrentMode(data.mode);
-      addSystemMessage(`Switched to ${data.mode} mode`);
-    });
-
-    // Listen for errors
-    socketService.onError((data) => {
-      setIsTyping(false);
-      setError(data.message);
-      addSystemMessage(`Error: ${data.message}`, 'error');
-    });
-
-    // Cleanup on unmount
     return () => {
-      socketService.removeAllListeners();
-      socketService.disconnect();
+      clearInterval(healthCheckInterval);
+      apiService.cancelRequest();
     };
   }, []);
 
@@ -73,6 +30,17 @@ function App() {
     // Scroll to bottom when messages change
     scrollToBottom();
   }, [messages, isTyping]);
+
+  const checkServerHealth = async () => {
+    try {
+      await apiService.checkHealth();
+      setIsConnected(true);
+      setError(null);
+    } catch (error) {
+      setIsConnected(false);
+      console.error('Server health check failed:', error);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -99,7 +67,7 @@ function App() {
     setMessages(prev => [...prev, newMessage]);
   };
 
-  const handleSendMessage = (message) => {
+  const handleSendMessage = async (message) => {
     if (!isConnected) {
       setError('Not connected to server');
       return;
@@ -108,13 +76,44 @@ function App() {
     // Add user message to chat
     addMessage(message, 'user');
 
-    // Send to server
-    socketService.sendMessage(message, currentMode);
+    try {
+      // Send message to server with callbacks
+      await apiService.sendMessage(message, currentMode, {
+        onMessageReceived: (data) => {
+          console.log('Message received:', data);
+        },
+        onBobThinking: () => {
+          setIsTyping(true);
+        },
+        onBobStream: (data) => {
+          // Optional: Handle streaming chunks if needed
+          console.log('Stream chunk:', data.chunk);
+        },
+        onBobResponse: (data) => {
+          setIsTyping(false);
+          addMessage(data.message, 'assistant', data.mode);
+        },
+        onBobComplete: (data) => {
+          setIsTyping(false);
+          console.log('Bob completed:', data.status);
+        },
+        onError: (data) => {
+          setIsTyping(false);
+          setError(data.message);
+          addSystemMessage(`Error: ${data.message}`, 'error');
+        }
+      });
+    } catch (error) {
+      setIsTyping(false);
+      setError('Failed to send message');
+      addSystemMessage(`Error: Failed to send message`, 'error');
+      console.error('Error sending message:', error);
+    }
   };
 
   const handleModeChange = (mode) => {
     setCurrentMode(mode);
-    socketService.switchMode(mode);
+    addSystemMessage(`Switched to ${mode} mode`);
   };
 
   const clearError = () => {
