@@ -1,321 +1,192 @@
-# SevOne Chat Application with MySQL
+# SevOne Chat App - Bob Shell Integration
 
-A chat-based interface for querying and interacting with a SevOne MySQL database using Bob AI with specialized SQL expertise and chain-of-thought reasoning.
+A chat interface that integrates with Bob shell to process user queries, with support for SQL queries via MCP server.
 
-## 🎯 Project Overview
+## Features
 
-This application provides a natural language interface to interact with SevOne's MySQL database. Users can ask questions in plain English, and the AI agent generates and executes appropriate SQL queries, presenting results in a user-friendly format.
+- 💬 Real-time chat interface built with React
+- 🤖 Bob AI assistant integration
+- 🔄 WebSocket communication for instant responses
+- 🗄️ SQL Expert mode for database queries
+- 🎨 Modern, responsive UI
+- 🔌 MCP server integration for database access
 
-## 🏗️ Architecture
-
-```
-User → Chat Interface (Streamlit) → Bob AI Agent → MCP Server → MySQL Database
-```
-
-### Components
-
-1. **MCP Server (Phase 1)** - Python-based server providing secure database access
-2. **Bob AI Agent (Phase 2)** - AI agent with SQL expertise using prompt-based approach
-3. **Chat Interface (Phase 3)** - Web-based UI for user interaction
-
-## 📁 Project Structure
+## Project Structure
 
 ```
-sevone-chat-app-mysql/
-├── mcp-server/              # Phase 1: MCP Server
+sevone-chat-app/
+├── client/                 # React frontend
 │   ├── src/
-│   │   ├── config/          # Configuration management
-│   │   ├── database/        # Database connection & validation
-│   │   ├── tools/           # MCP tools (select_query, insert_query)
-│   │   └── server.py        # MCP server entry point
-│   ├── tests/               # Unit tests
-│   ├── pyproject.toml
-│   ├── requirements.txt
-│   └── README.md
-│
-├── chat-interface/          # Phase 3: Chat Interface
-│   ├── prompts/             # System prompts for Bob AI
-│   ├── utils/               # Utility modules
-│   ├── app.py               # Streamlit application
-│   ├── requirements.txt
-│   └── README.md
-│
-├── scripts/                 # Utility scripts
-│   ├── setup_database.py    # Database initialization
-│   ├── extract_schema.py    # Schema extraction
-│   └── test_connection.py   # Connection testing
-│
-├── docs/                    # Documentation
-│   ├── DESIGN.md            # Detailed design document
-│   ├── PHASE2_PLAN.md       # Phase 2 implementation plan
-│   └── PHASE3_PLAN.md       # Phase 3 implementation plan
-│
-├── .env.example             # Environment variables template
-└── README.md                # This file
+│   │   ├── components/    # React components
+│   │   ├── services/      # API and WebSocket services
+│   │   ├── App.js         # Main app component
+│   │   └── index.js       # Entry point
+│   └── package.json
+├── server/                # Node.js backend
+│   └── index.js          # Express + Socket.IO server
+├── .bob/                  # Bob configuration
+│   ├── custom_modes.yaml # Custom Bob modes
+│   └── mcp.json          # MCP server config
+├── package.json
+└── README.md
 ```
 
-## 🚀 Implementation Status
+## Prerequisites
 
-### ✅ Phase 1: MCP Server (COMPLETE)
+- Node.js (v14 or higher)
+- npm or yarn
+- Bob CLI (for production integration)
 
-**Status**: Implemented and ready for testing
+## Installation
 
-**Features**:
-- ✅ Database connection pooling
-- ✅ Query validation and security
-- ✅ SELECT query tool
-- ✅ INSERT query tool
-- ✅ Schema extraction tool
-- ✅ Comprehensive error handling
-- ✅ Unit tests
-- ✅ Documentation
+1. Install all dependencies:
+```bash
+npm run install-all
+```
 
-**Next Steps**:
-1. Set up MySQL database
-2. Configure environment variables
-3. Install dependencies
-4. Run tests
-5. Start MCP server
+Or manually:
+```bash
+# Install backend dependencies
+npm install
 
-See [`mcp-server/README.md`](mcp-server/README.md) for detailed instructions.
+# Install frontend dependencies
+cd client && npm install
+```
 
-### ⏳ Phase 2: Bob AI Agent (PLANNED)
+## Running the Application
 
-**Status**: Planned - Not yet started
+### Development Mode
 
-**Objectives**:
-- Configure Bob AI to connect to MCP server
-- Create SQL expert system prompt
-- Implement chain-of-thought reasoning
-- Test query generation and execution
-- Validate error handling
+Run both frontend and backend concurrently:
+```bash
+npm run dev
+```
 
-**Timeline**: 12-17 hours
+Or run them separately:
 
-See [`docs/PHASE2_PLAN.md`](docs/PHASE2_PLAN.md) for detailed plan.
+**Backend:**
+```bash
+npm run server
+```
 
-### ⏳ Phase 3: Chat Interface (PLANNED)
+**Frontend:**
+```bash
+npm run client
+```
 
-**Status**: Planned - Not yet started
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:5000
 
-**Objectives**:
-- Create Streamlit web interface
-- Integrate with Bob AI agent
-- Implement chat history
-- Add schema browser
-- Create result visualization
-- Add query examples
+## Available Modes
 
-**Timeline**: 18-23 hours
+### Code Mode (Default)
+General purpose AI assistant for code-related tasks.
 
-See [`docs/PHASE3_PLAN.md`](docs/PHASE3_PLAN.md) for detailed plan.
+### SQL Expert Mode
+Specialized mode for database queries:
+- Analyzes database schema
+- Generates SQL queries
+- Executes queries via MCP server
+- Returns formatted results
 
-## 🛠️ Technology Stack
+## Configuration
 
-- **Language**: Python 3.11+
-- **MCP Framework**: MCP Python SDK
-- **Database**: MySQL 5.7+ / MariaDB 10.3+
-- **Database Driver**: aiomysql
-- **AI Agent**: Bob AI (prompt-based)
-- **Web Framework**: Streamlit
-- **Testing**: pytest, pytest-asyncio
-- **Validation**: pydantic
+### Environment Variables
 
-## 📋 Prerequisites
+Create a `.env` file in the root directory:
 
-- Python 3.11 or higher
-- MySQL 5.7+ or MariaDB 10.3+
-- Bob AI installed and configured
-- Access to SevOne MySQL database
+```env
+PORT=5000
+CLIENT_URL=http://localhost:3000
+NODE_ENV=development
+BOB_PATH=/opt/database-chat-app
+```
 
-## 🚦 Quick Start
+**Configuration Options:**
+- `PORT`: Backend server port (default: 5000)
+- `CLIENT_URL`: Frontend URL for CORS (default: http://localhost:3000)
+- `NODE_ENV`: Environment mode (development/production)
+- `BOB_PATH`: Path to Bob installation directory (default: /opt/database-chat-app)
 
-### 1. Clone Repository
+### Bob Configuration
+
+Bob modes are configured in `.bob/custom_modes.yaml`. The SQL Expert mode is pre-configured to work with the MCP server.
+
+### MCP Server
+
+Database connection is configured in `.bob/mcp.json`:
+- Server: sevone-mysql-remote
+- Type: SSE
+- Authentication: Bearer token
+
+## Usage
+
+1. Start the application
+2. Type your query in the chat input
+3. Select the appropriate mode (Code or SQL Expert)
+4. Bob will process your request and respond
+5. For SQL queries, Bob will:
+   - Understand your natural language query
+   - Generate appropriate SQL
+   - Execute via MCP server
+   - Return results
+
+## API Endpoints
+
+### REST API
+- `GET /api/health` - Health check endpoint
+
+### WebSocket Events
+
+**Client → Server:**
+- `chat_message` - Send a message to Bob
+- `switch_mode` - Switch Bob mode
+
+**Server → Client:**
+- `message_received` - Acknowledgment of message
+- `bob_thinking` - Bob is processing
+- `bob_response` - Bob's response
+- `bob_complete` - Processing complete
+- `mode_switched` - Mode change confirmation
+- `error` - Error occurred
+
+## Building for Production
 
 ```bash
-git clone <repository-url>
-cd sevone-chat-app-mysql
+npm run build
 ```
 
-### 2. Set Up Environment
+This will create an optimized production build in `client/build/`.
 
-```bash
-# Copy environment template
-cp .env.example .env
+## Technologies Used
 
-# Edit .env with your database credentials
-nano .env
-```
+### Frontend
+- React.js
+- Socket.IO Client
+- CSS3 for styling
 
-### 3. Install Phase 1 (MCP Server)
+### Backend
+- Node.js
+- Express.js
+- Socket.IO
+- Child Process (for Bob CLI integration)
 
-```bash
-cd mcp-server
-pip install -r requirements.txt
+## Future Enhancements
 
-# Run tests
-pytest tests/ -v
+- [ ] Add authentication
+- [ ] Implement chat history persistence
+- [ ] Add file upload support
+- [ ] Enhance SQL query visualization
+- [ ] Add more Bob modes
+- [ ] Implement streaming responses
+- [ ] Add code syntax highlighting
+- [ ] Export chat conversations
 
-# Start MCP server
-python -m src.server
-```
+## License
 
-### 4. Configure Phase 2 (Bob AI)
+ISC
 
-See [`docs/PHASE2_PLAN.md`](docs/PHASE2_PLAN.md) for configuration instructions.
+## Support
 
-### 5. Run Phase 3 (Chat Interface)
-
-```bash
-cd chat-interface
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-## 🔒 Security Features
-
-- **Query Validation**: Blocks dangerous SQL operations (DROP, DELETE, etc.)
-- **Parameterized Queries**: Mandatory for INSERT operations
-- **SQL Injection Prevention**: Comprehensive validation and sanitization
-- **Connection Security**: Secure credential management via environment variables
-- **Error Sanitization**: No sensitive information in error messages
-- **Access Control**: Read-only SELECT and controlled INSERT operations
-
-## 📊 Database Schema
-
-The application works with the SevOne monitoring database schema:
-
-- **devices**: Network devices being monitored
-- **metrics**: Performance metrics collected from devices
-- **alerts**: Alerts generated from monitoring
-- **users**: System users
-
-See [`scripts/setup_database.py`](scripts/setup_database.py) for schema details.
-
-## 🧪 Testing
-
-### MCP Server Tests
-
-```bash
-cd mcp-server
-pytest tests/ -v --cov=src --cov-report=html
-```
-
-### Integration Tests
-
-```bash
-# Test database connection
-python scripts/test_connection.py
-
-# Test MCP server
-python scripts/test_mcp_server.py
-```
-
-## 📖 Documentation
-
-- **[DESIGN.md](DESIGN.md)** - Comprehensive design document
-- **[Phase 1 README](mcp-server/README.md)** - MCP Server documentation
-- **[Phase 2 Plan](docs/PHASE2_PLAN.md)** - Bob AI implementation plan
-- **[Phase 3 Plan](docs/PHASE3_PLAN.md)** - Chat interface plan
-
-## 🎯 Key Design Decisions
-
-### Why Python?
-- Simpler and more concise than TypeScript
-- Official MCP Python SDK is well-supported
-- Mature MySQL libraries
-- Streamlit/Gradio provide instant UI
-- Easier integration with data science tools
-
-### Why Prompt-Based Instead of Custom Mode?
-- No need to build and maintain custom Bob mode
-- Easy to update and refine prompts
-- Works with any Bob installation
-- Prompt changes don't require code deployment
-- More transparent and understandable
-- Cost-effective
-
-### Why MCP Server?
-- Standardized protocol for tool access
-- Secure and controlled database access
-- Easy integration with Bob AI
-- Reusable for other applications
-
-## 🔄 Development Workflow
-
-1. **Phase 1**: Implement and test MCP server
-2. **Phase 2**: Configure Bob AI with SQL expert prompt
-3. **Phase 3**: Build chat interface
-4. **Integration**: Connect all components
-5. **Testing**: End-to-end validation
-6. **Deployment**: Production deployment
-
-## 🚀 Deployment
-
-### Development
-
-```bash
-# Start MCP server
-cd mcp-server && python -m src.server
-
-# Start chat interface
-cd chat-interface && streamlit run app.py
-```
-
-### Production
-
-Options:
-- **Streamlit Cloud**: Easy deployment for Streamlit apps
-- **Docker**: Containerized deployment
-- **Hugging Face Spaces**: Free hosting option
-- **AWS/Azure/GCP**: Cloud platform deployment
-
-## 📈 Performance Metrics
-
-**Target Metrics**:
-- Query response time: < 2 seconds (90th percentile)
-- MCP tool execution: < 500ms
-- UI responsiveness: < 100ms
-- Query generation accuracy: > 95%
-
-## 🤝 Contributing
-
-1. Follow the existing code structure
-2. Add tests for new features
-3. Update documentation
-4. Follow Python best practices (PEP 8)
-5. Use type hints
-
-## 📝 License
-
-Copyright © 2024 SevOne. All rights reserved.
-
-## 👥 Support
-
-For issues and questions, please contact the SevOne development team.
-
-## 🗺️ Roadmap
-
-### Current Phase
-- ✅ Phase 1: MCP Server implementation
-
-### Next Steps
-- ⏳ Phase 2: Bob AI configuration
-- ⏳ Phase 3: Chat interface development
-
-### Future Enhancements
-- Query history and favorites
-- Result export (CSV, JSON, Excel)
-- Data visualization (charts, graphs)
-- Multi-database support
-- UPDATE/DELETE operations (with controls)
-- Voice input
-- Scheduled queries
-- Alerts and notifications
-- Collaboration features
-- Audit logging
-- Role-based access control
-
-## 📞 Contact
-
-For more information about this project, please refer to the documentation or contact the development team.# sevone-chat-app
+For issues or questions, please open an issue in the repository.

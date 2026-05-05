@@ -1,11 +1,1 @@
-{
-  "mcpServers": {
-    "sevone-mysql-remote": {
-      "type": "sse",
-      "url": "http://c49988v1.fyre.ibm.com:8443/sse",
-      "headers": {
-        "Authorization": "Bearer 85a87b5b24e957808932276e012047110741b16120cf2ad2b1490d86de23f297"
-      }
-    }
-  }
-}
+{"mcpServers":{"sevone-mysql-remote":{"type":"sse","url":"http://c49988v1.fyre.ibm.com:8443/sse","headers":{"Authorization":"Bearer 85a87b5b24e957808932276e012047110741b16120cf2ad2b1490d86de23f297"},"alwaysAllow":[]}}}
