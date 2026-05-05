@@ -1,6 +1,99 @@
 # SevOne Chat App - Bob Shell Integration
 
-A chat interface that integrates with Bob shell to process user queries, with support for SQL queries via MCP server.
+A real-time chat interface that integrates with Bob AI assistant to process user queries, featuring specialized SQL Expert mode for database operations via MCP (Model Context Protocol) server.
+
+## Overview
+
+This application provides an intuitive chat-based interface for interacting with Bob AI, enabling both general code assistance and specialized database querying capabilities. The system uses a modern React frontend communicating with a Node.js backend that orchestrates Bob CLI commands, with optional MCP server integration for secure database access.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         User Browser                             │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │         React Frontend (localhost:3000)                    │  │
+│  │  • ChatMessage - Display conversation                      │  │
+│  │  • ChatInput - User input + mode selector                  │  │
+│  │  • TypingIndicator - Loading states                        │  │
+│  │  • socketService - API communication                       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                             │ HTTP/SSE (Server-Sent Events)
+                             │ REST API Calls
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              Node.js Backend (localhost:5000)                    │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Express Server + SSE Streaming                            │  │
+│  │  • POST /api/chat - Process messages                       │  │
+│  │  • GET /api/health - Health check                          │  │
+│  │  • Message routing & mode switching                        │  │
+│  │  • Real-time event streaming                               │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                            │                                     │
+│                            ↓                                     │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Bob CLI Integration (Child Process)                       │  │
+│  │  • Spawn Bob processes with selected mode                  │  │
+│  │  • Stream stdout/stderr in real-time                       │  │
+│  │  • Handle process lifecycle & timeouts                     │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                             ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    Bob AI Assistant                              │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Custom Modes (.bob/custom_modes.yaml)                     │  │
+│  │  • Code Mode - General programming assistance              │  │
+│  │  • SQL Expert Mode - Database query specialist            │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  MCP Configuration (.bob/mcp.json)                         │  │
+│  │  • sevone-mysql-remote - Database connection               │  │
+│  │  • SSE transport with Bearer auth                          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                             │
+                             ↓ (SQL Expert Mode Only)
+┌─────────────────────────────────────────────────────────────────┐
+│              MCP Server (Python) - Optional                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Database Tools                                            │  │
+│  │  • select_query - Execute SELECT queries                   │  │
+│  │  • insert_query - Execute INSERT queries                   │  │
+│  │  • Schema validation & query safety checks                 │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                            │                                     │
+│                            ↓                                     │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  MySQL Database (SevOne Schema)                            │  │
+│  │  • Devices, metrics, alerts, configurations                │  │
+│  │  • Secure parameterized queries only                       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## How It Works
+
+### Message Flow
+1. **User Input** → User types a message and selects a mode (Code or SQL Expert)
+2. **Frontend** → React app sends HTTP POST to `/api/chat` with message and mode
+3. **Backend** → Express server spawns Bob CLI process with selected mode
+4. **Streaming** → Server streams Bob's output via Server-Sent Events (SSE)
+5. **Bob Processing** → Bob AI processes the request using appropriate mode
+6. **MCP Integration** (SQL Expert mode) → Bob uses MCP tools to query database
+7. **Response** → Results stream back through the chain to the user interface
+8. **Display** → React components render the formatted response
+
+### Key Features
+- **Real-time Streaming**: See Bob's thinking process and responses as they happen
+- **Mode Switching**: Toggle between general code assistance and SQL expertise
+- **MCP Integration**: Secure database access through standardized protocol
+- **Error Handling**: Comprehensive error reporting at each layer
+- **Process Management**: Automatic timeout and cleanup of Bob processes
 
 ## Features
 
