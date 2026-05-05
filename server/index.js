@@ -111,7 +111,7 @@ async function executeBobCLI(socket, message, mode) {
     const bobProcess = spawn(bobCommand, bobArgs, {
       cwd: process.cwd(),
       env: { ...process.env },
-      shell: false
+      shell: true
     });
 
     let output = '';
@@ -129,10 +129,18 @@ async function executeBobCLI(socket, message, mode) {
       });
     });
 
-    // Capture stderr
+    // Capture stderr (Bob may output progress/status here)
     bobProcess.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-      console.error('Bob stderr:', data.toString());
+      const chunk = data.toString();
+      errorOutput += chunk;
+      console.error('Bob stderr:', chunk);
+      
+      // Stream stderr to client as well (for progress updates)
+      socket.emit('bob_stream', {
+        chunk: chunk,
+        timestamp: new Date().toISOString(),
+        isError: false // It's often just progress info, not actual errors
+      });
     });
 
     // Handle process completion
