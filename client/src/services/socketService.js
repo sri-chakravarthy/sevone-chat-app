@@ -6,7 +6,7 @@ class SocketService {
     this.connected = false;
   }
 
-  connect(url = 'http://localhost:5000') {
+  connect(url = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000') {
     if (this.socket && this.connected) {
       return this.socket;
     }
@@ -14,8 +14,8 @@ class SocketService {
     this.socket = io(url, {
       transports: ['websocket'],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnectionDelay: parseInt(process.env.REACT_APP_SOCKET_RECONNECTION_DELAY) || 1000,
+      reconnectionAttempts: parseInt(process.env.REACT_APP_SOCKET_RECONNECTION_ATTEMPTS) || 5
     });
 
     this.socket.on('connect', () => {
@@ -43,7 +43,7 @@ class SocketService {
     }
   }
 
-  sendMessage(message, mode = 'code') {
+  sendMessage(message, mode = process.env.REACT_APP_DEFAULT_MODE || 'code') {
     if (this.socket && this.connected) {
       this.socket.emit('chat_message', { message, mode });
     } else {
