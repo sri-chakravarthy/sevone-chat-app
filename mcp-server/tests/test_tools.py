@@ -13,11 +13,13 @@ from src.tools.insert_query import insert_query_tool
 def db_config():
     """Create test database configuration"""
     return DatabaseConfig(
-        host="localhost",
-        port=3306,
+        access_mode="podman_exec",
         database="test_db",
-        user="test_user",
-        password="test_pass"
+        podman_binary="podman",
+        podman_container_name="nms-nms-nms",
+        mysql_client_path="/usr/bin/mysql",
+        command_timeout=30,
+        max_concurrent_commands=2,
     )
 
 
@@ -43,11 +45,10 @@ def validator(security_config):
 
 class TestSelectQueryTool:
     """Tests for select_query tool"""
-    
+
     @pytest.mark.asyncio
     async def test_valid_select_query(self, mock_db_connection, validator):
         """Test valid SELECT query execution"""
-        # Mock successful query execution
         mock_db_connection.execute_select = AsyncMock(return_value={
             "success": True,
             "rows": [{"id": 1, "name": "Test"}],
@@ -55,18 +56,18 @@ class TestSelectQueryTool:
             "execution_time": 0.05,
             "columns": ["id", "name"]
         })
-        
+
         result = await select_query_tool(
             mock_db_connection,
             validator,
             "SELECT * FROM devices",
             None
         )
-        
+
         assert result["success"] is True
         assert result["row_count"] == 1
         assert len(result["rows"]) == 1
-    
+
     @pytest.mark.asyncio
     async def test_select_with_parameters(self, mock_db_connection, validator):
         """Test SELECT query with parameters"""
@@ -77,17 +78,17 @@ class TestSelectQueryTool:
             "execution_time": 0.05,
             "columns": ["id", "name"]
         })
-        
+
         result = await select_query_tool(
             mock_db_connection,
             validator,
             "SELECT * FROM devices WHERE name = %s",
             ["Router-01"]
         )
-        
+
         assert result["success"] is True
         assert result["rows"][0]["name"] == "Router-01"
-    
+
     @pytest.mark.asyncio
     async def test_invalid_select_query(self, mock_db_connection, validator):
         """Test invalid SELECT query (contains DROP)"""
@@ -97,10 +98,10 @@ class TestSelectQueryTool:
             "SELECT * FROM devices; DROP TABLE devices;",
             None
         )
-        
+
         assert result["success"] is False
         assert "error" in result
-    
+
     @pytest.mark.asyncio
     async def test_non_select_query(self, mock_db_connection, validator):
         """Test non-SELECT query rejection"""
@@ -110,14 +111,14 @@ class TestSelectQueryTool:
             "INSERT INTO devices VALUES (1, 'test')",
             None
         )
-        
+
         assert result["success"] is False
         assert "SELECT" in result["error"]
 
 
 class TestInsertQueryTool:
     """Tests for insert_query tool"""
-    
+
     @pytest.mark.asyncio
     async def test_valid_insert_query(self, mock_db_connection, validator):
         """Test valid INSERT query execution"""
@@ -126,18 +127,18 @@ class TestInsertQueryTool:
             "insert_id": 123,
             "affected_rows": 1
         })
-        
+
         result = await insert_query_tool(
             mock_db_connection,
             validator,
             "INSERT INTO devices (name, ip) VALUES (%s, %s)",
             ["Router-01", "192.168.1.1"]
         )
-        
+
         assert result["success"] is True
         assert result["insert_id"] == 123
         assert result["affected_rows"] == 1
-    
+
     @pytest.mark.asyncio
     async def test_insert_without_parameters(self, mock_db_connection, validator):
         """Test INSERT query without parameters (should fail)"""
@@ -147,10 +148,10 @@ class TestInsertQueryTool:
             "INSERT INTO devices (name) VALUES ('test')",
             []
         )
-        
+
         assert result["success"] is False
         assert "required" in result["error"].lower()
-    
+
     @pytest.mark.asyncio
     async def test_insert_without_placeholders(self, mock_db_connection, validator):
         """Test INSERT query without placeholders (should fail)"""
@@ -160,10 +161,10 @@ class TestInsertQueryTool:
             "INSERT INTO devices (name) VALUES ('test')",
             ["test"]
         )
-        
+
         assert result["success"] is False
         assert "placeholder" in result["error"].lower()
-    
+
     @pytest.mark.asyncio
     async def test_non_insert_query(self, mock_db_connection, validator):
         """Test non-INSERT query rejection"""
@@ -173,10 +174,10 @@ class TestInsertQueryTool:
             "SELECT * FROM devices",
             ["test"]
         )
-        
+
         assert result["success"] is False
         assert "INSERT" in result["error"]
-    
+
     @pytest.mark.asyncio
     async def test_dangerous_insert_query(self, mock_db_connection, validator):
         """Test dangerous INSERT query (contains DROP)"""
@@ -186,7 +187,7 @@ class TestInsertQueryTool:
             "INSERT INTO devices VALUES (%s); DROP TABLE devices;",
             ["test"]
         )
-        
+
         assert result["success"] is False
         assert "error" in result
 
