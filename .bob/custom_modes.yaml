@@ -11,6 +11,7 @@ customModes:
         4. If the query is not solving the ask, repeat the above steps or ask for clarification.
 
         Note: Use the MCP server to access the database. The MCP server is already connected to database.
+        Please refer to the database schemas provided under schemas/nms_local_schema.sql and schemas/sevone_schema.sql to prepare queries. In the queries, always use database.tablename.
 
     groups:
       - read
