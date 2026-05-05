@@ -27,6 +27,7 @@ class ApiService {
       onMessageReceived,
       onBobThinking,
       onBobStream,
+      onBobStep,
       onBobResponse,
       onBobComplete,
       onError
@@ -69,6 +70,9 @@ class ApiService {
                 break;
               case 'bob_stream':
                 if (onBobStream) onBobStream(data);
+                break;
+              case 'bob_step':
+                if (onBobStep) onBobStep(data);
                 break;
               case 'bob_response':
                 if (onBobResponse) onBobResponse(data);

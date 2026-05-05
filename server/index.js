@@ -61,20 +61,26 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+function sendSSE(res, payload) {
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
 /**
- * Execute Bob CLI command using spawn (collects output and sends final result)
+ * Execute Bob CLI command using spawn and stream progress/output events
  */
 async function executeBobCLI(res, message, mode) {
   return new Promise((resolve, reject) => {
-    // Map mode to Bob chat mode
     const bobMode = mode === 'SQL-expert' ? 'data-expert' : 'code';
-    
-    // Get Bob path from environment or use default
     const bobPath = process.env.BOB_PATH || '/opt/sevone-chat-app';
-    
+
     console.log(`Executing Bob command in ${bobPath} with mode ${bobMode}`);
 
-    // Spawn Bob process
+    sendSSE(res, {
+      type: 'bob_step',
+      step: 'starting',
+      message: `Starting Bob in ${bobMode} mode`
+    });
+
     const bobProcess = spawn('bash', ['-c', `cd ${bobPath} && bob -y --chat-mode '${bobMode}' -p '${message}'`], {
       env: { ...process.env },
       shell: true
@@ -82,109 +88,133 @@ async function executeBobCLI(res, message, mode) {
 
     let fullOutput = '';
     let fullError = '';
-    let hasError = false;
 
-    // Collect stdout
     bobProcess.stdout.on('data', (data) => {
       const chunk = data.toString();
       fullOutput += chunk;
       console.log('Bob stdout:', chunk);
+
+      sendSSE(res, {
+        type: 'bob_stream',
+        stream: 'stdout',
+        chunk,
+        timestamp: new Date().toISOString()
+      });
+
+      sendSSE(res, {
+        type: 'bob_step',
+        step: 'stdout',
+        message: 'Bob produced output'
+      });
     });
 
-    // Collect stderr
     bobProcess.stderr.on('data', (data) => {
       const chunk = data.toString();
       fullError += chunk;
       console.log('Bob stderr:', chunk);
+
+      sendSSE(res, {
+        type: 'bob_stream',
+        stream: 'stderr',
+        chunk,
+        timestamp: new Date().toISOString()
+      });
+
+      sendSSE(res, {
+        type: 'bob_step',
+        step: 'stderr',
+        message: chunk.trim() || 'Bob reported progress'
+      });
     });
 
-    // Handle process completion
     bobProcess.on('close', (code) => {
       console.log(`Bob process exited with code ${code}`);
       console.log('Full output:', fullOutput);
-      
+
       if (code !== 0) {
-        hasError = true;
-        res.write(`data: ${JSON.stringify({
+        sendSSE(res, {
           type: 'error',
           message: `Bob process exited with code ${code}`,
           error: fullError || fullOutput
-        })}\n\n`);
-        
-        res.write(`data: ${JSON.stringify({
+        });
+
+        sendSSE(res, {
           type: 'bob_complete',
           status: 'error'
-        })}\n\n`);
-        
+        });
+
         res.end();
         reject(new Error(`Process exited with code ${code}`));
         return;
       }
 
-      // Extract content between ---output--- tags if present (last match)
       let cleanedOutput = fullOutput;
       const outputMatches = [...fullOutput.matchAll(/---output---\s*([\s\S]*?)\s*---output---/g)];
       const outputMatch = outputMatches.length > 0 ? outputMatches[outputMatches.length - 1] : null;
 
+      if (outputMatch) {
+        cleanedOutput = outputMatch[1].trim();
+      }
 
-      // Send final response only
-      res.write(`data: ${JSON.stringify({
+      sendSSE(res, {
         type: 'bob_response',
         id: Date.now(),
         message: cleanedOutput || fullOutput || 'Bob completed successfully but returned no output.',
-        mode: mode,
+        mode,
         timestamp: new Date().toISOString()
-      })}\n\n`);
+      });
 
-      // Send completion event
-      res.write(`data: ${JSON.stringify({
+      sendSSE(res, {
+        type: 'bob_step',
+        step: 'completed',
+        message: 'Bob finished processing'
+      });
+
+      sendSSE(res, {
         type: 'bob_complete',
         status: 'completed'
-      })}\n\n`);
+      });
 
       res.end();
       resolve(cleanedOutput);
     });
 
-    // Handle process errors
     bobProcess.on('error', (error) => {
       console.error('Bob process error:', error);
-      
-      res.write(`data: ${JSON.stringify({
+
+      sendSSE(res, {
         type: 'error',
         message: 'Failed to start Bob process',
         error: error.message
-      })}\n\n`);
-      
-      res.write(`data: ${JSON.stringify({
+      });
+
+      sendSSE(res, {
         type: 'bob_complete',
         status: 'error'
-      })}\n\n`);
-      
+      });
+
       res.end();
       reject(error);
     });
 
-    // Set timeout
     const timeout = setTimeout(() => {
       console.log('Bob process timeout - killing process');
       bobProcess.kill();
-      
-      res.write(`data: ${JSON.stringify({
+
+      sendSSE(res, {
         type: 'error',
         message: 'Bob command timed out after 5 minutes'
-      })}\n\n`);
-      
-      res.write(`data: ${JSON.stringify({
+      });
+
+      sendSSE(res, {
         type: 'bob_complete',
         status: 'timeout'
-      })}\n\n`);
-      
+      });
+
       res.end();
       reject(new Error('Timeout'));
-    }, 300000); // 5 minutes
+    }, 300000);
 
-    // Clear timeout on process completion
     bobProcess.on('close', () => {
       clearTimeout(timeout);
     });

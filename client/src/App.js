@@ -11,6 +11,7 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [currentMode, setCurrentMode] = useState('code');
   const [error, setError] = useState(null);
+  const activeAssistantMessageIdRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -67,6 +68,49 @@ function App() {
     setMessages(prev => [...prev, newMessage]);
   };
 
+  const ensureStreamingAssistantMessage = (mode = currentMode) => {
+    if (activeAssistantMessageIdRef.current) {
+      return activeAssistantMessageIdRef.current;
+    }
+
+    const messageId = Date.now();
+    activeAssistantMessageIdRef.current = messageId;
+
+    setMessages(prev => [...prev, {
+      id: messageId,
+      message: '',
+      type: 'assistant',
+      timestamp: new Date().toISOString(),
+      mode
+    }]);
+
+    return messageId;
+  };
+
+  const appendToAssistantMessage = (chunk, mode = currentMode) => {
+    const messageId = ensureStreamingAssistantMessage(mode);
+
+    setMessages(prev => prev.map(msg => (
+      msg.id === messageId
+        ? { ...msg, message: `${msg.message}${chunk}`, mode }
+        : msg
+    )));
+  };
+
+  const finalizeAssistantMessage = (finalMessage, mode = currentMode) => {
+    const messageId = ensureStreamingAssistantMessage(mode);
+
+    setMessages(prev => prev.map(msg => (
+      msg.id === messageId
+        ? { ...msg, message: finalMessage || msg.message, mode }
+        : msg
+    )));
+  };
+
+  const resetStreamingAssistantMessage = () => {
+    activeAssistantMessageIdRef.current = null;
+  };
+
   const handleSendMessage = async (message) => {
     if (!isConnected) {
       setError('Not connected to server');
@@ -77,36 +121,54 @@ function App() {
     addMessage(message, 'user');
 
     try {
-      // Send message to server with callbacks
+      resetStreamingAssistantMessage();
+
       await apiService.sendMessage(message, currentMode, {
         onMessageReceived: (data) => {
           console.log('Message received:', data);
         },
         onBobThinking: () => {
           setIsTyping(true);
+          addSystemMessage('Bob is thinking...', 'system');
         },
         onBobStream: (data) => {
-          // Optional: Handle streaming chunks if needed
-          console.log('Stream chunk:', data.chunk);
+          setIsTyping(false);
+
+          if (data.stream === 'stdout' && data.chunk) {
+            appendToAssistantMessage(data.chunk, currentMode);
+          }
+
+          if (data.stream === 'stderr' && data.chunk?.trim()) {
+            addSystemMessage(`Bob step: ${data.chunk.trim()}`, 'system');
+          }
         },
         onBobResponse: (data) => {
           setIsTyping(false);
-          addMessage(data.message, 'assistant', data.mode);
+          finalizeAssistantMessage(data.message, data.mode);
         },
         onBobComplete: (data) => {
           setIsTyping(false);
+          addSystemMessage(`Bob completed: ${data.status}`, 'system');
+          resetStreamingAssistantMessage();
           console.log('Bob completed:', data.status);
         },
         onError: (data) => {
           setIsTyping(false);
           setError(data.message);
           addSystemMessage(`Error: ${data.message}`, 'error');
+          resetStreamingAssistantMessage();
+        },
+        onBobStep: (data) => {
+          if (data.message) {
+            addSystemMessage(`Bob step: ${data.message}`, 'system');
+          }
         }
       });
     } catch (error) {
       setIsTyping(false);
       setError('Failed to send message');
       addSystemMessage(`Error: Failed to send message`, 'error');
+      resetStreamingAssistantMessage();
       console.error('Error sending message:', error);
     }
   };
