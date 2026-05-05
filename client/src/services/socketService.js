@@ -6,7 +6,7 @@ class SocketService {
     this.connected = false;
   }
 
-  connect(url = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000') {
+  connect(url = process.env.REACT_APP_SOCKET_URL || 'http://9.60.155.22:5000') {
     if (this.socket && this.connected) {
       return this.socket;
     }
