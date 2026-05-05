@@ -54,55 +54,77 @@ class ApiService {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';
+
+        const handleEventData = (eventData) => {
+          try {
+            const data = JSON.parse(eventData);
+
+            switch (data.type) {
+              case 'message_received':
+                if (onMessageReceived) onMessageReceived(data);
+                break;
+              case 'bob_thinking':
+                if (onBobThinking) onBobThinking(data);
+                break;
+              case 'bob_stream':
+                if (onBobStream) onBobStream(data);
+                break;
+              case 'bob_response':
+                if (onBobResponse) onBobResponse(data);
+                break;
+              case 'bob_complete':
+                if (onBobComplete) onBobComplete(data);
+                break;
+              case 'error':
+                if (onError) onError(data);
+                break;
+              default:
+                console.log('Unknown event type:', data.type);
+            }
+          } catch (error) {
+            console.error('Error parsing SSE data:', error, eventData);
+          }
+        };
+
+        const processBuffer = () => {
+          const events = buffer.split('\n\n');
+          buffer = events.pop() || '';
+
+          events.forEach(eventBlock => {
+            const dataLines = eventBlock
+              .split('\n')
+              .filter(line => line.startsWith('data: '))
+              .map(line => line.substring(6));
+
+            if (dataLines.length > 0) {
+              handleEventData(dataLines.join('\n'));
+            }
+          });
+        };
 
         const readStream = () => {
           reader.read().then(({ done, value }) => {
             if (done) {
+              buffer += decoder.decode();
+              processBuffer();
+
+              const remainingDataLines = buffer
+                .split('\n')
+                .filter(line => line.startsWith('data: '))
+                .map(line => line.substring(6));
+
+              if (remainingDataLines.length > 0) {
+                handleEventData(remainingDataLines.join('\n'));
+              }
+
               resolve();
               return;
             }
 
-            // Decode the chunk
-            const chunk = decoder.decode(value, { stream: true });
-            
-            // Split by newlines to handle multiple events
-            const lines = chunk.split('\n');
-            
-            lines.forEach(line => {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.substring(6));
-                  
-                  // Handle different event types
-                  switch (data.type) {
-                    case 'message_received':
-                      if (onMessageReceived) onMessageReceived(data);
-                      break;
-                    case 'bob_thinking':
-                      if (onBobThinking) onBobThinking(data);
-                      break;
-                    case 'bob_stream':
-                      if (onBobStream) onBobStream(data);
-                      break;
-                    case 'bob_response':
-                      if (onBobResponse) onBobResponse(data);
-                      break;
-                    case 'bob_complete':
-                      if (onBobComplete) onBobComplete(data);
-                      break;
-                    case 'error':
-                      if (onError) onError(data);
-                      break;
-                    default:
-                      console.log('Unknown event type:', data.type);
-                  }
-                } catch (error) {
-                  console.error('Error parsing SSE data:', error);
-                }
-              }
-            });
+            buffer += decoder.decode(value, { stream: true });
+            processBuffer();
 
-            // Continue reading
             readStream();
           }).catch(error => {
             console.error('Stream reading error:', error);
