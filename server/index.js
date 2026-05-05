@@ -96,7 +96,7 @@ async function executeBobCLI(socket, message, mode) {
     const bobMode = mode === 'SQL-expert' ? 'data-expert' : 'code';
     
     // Get Bob path from environment or use default
-    const bobPath = process.env.BOB_PATH || '/opt/database-chat-app';
+    const bobPath = process.env.BOB_PATH || '/opt/sevone-chat-app';
     
     // Construct Bob command
     const bobCommand = 'bash';

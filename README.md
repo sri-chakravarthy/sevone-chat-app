@@ -100,14 +100,14 @@ Create a `.env` file in the root directory:
 PORT=5000
 CLIENT_URL=http://localhost:3000
 NODE_ENV=development
-BOB_PATH=/opt/database-chat-app
+BOB_PATH=/opt/sevone-chat-app
 ```
 
 **Configuration Options:**
 - `PORT`: Backend server port (default: 5000)
 - `CLIENT_URL`: Frontend URL for CORS (default: http://localhost:3000)
 - `NODE_ENV`: Environment mode (development/production)
-- `BOB_PATH`: Path to Bob installation directory (default: /opt/database-chat-app)
+- `BOB_PATH`: Path to Bob installation directory (default: /opt/sevone-chat-app)
 
 ### Bob Configuration
 
