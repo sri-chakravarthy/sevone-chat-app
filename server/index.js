@@ -74,7 +74,7 @@ async function executeBobCLI(res, message, mode) {
     
     // Construct Bob command - escape single quotes in message
     const escapedMessage = message.replace(/'/g, "'\\''");
-    const command = `bash -c cd ${bobPath} && bob -y --chat-mode '${bobMode}' -p '${escapedMessage}'`;
+    const command = `bash -c "cd ${bobPath} && bob -y --chat-mode '${bobMode}' -p '${escapedMessage}'"`;
 
     console.log(`Executing Bob command: ${command}`);
 
