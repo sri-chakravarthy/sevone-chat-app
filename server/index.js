@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
 require('dotenv').config();
 
@@ -62,7 +62,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 /**
- * Execute Bob CLI command using exec (runs in shell, waits for completion)
+ * Execute Bob CLI command using spawn (collects output and sends final result)
  */
 async function executeBobCLI(res, message, mode) {
   return new Promise((resolve, reject) => {
@@ -72,93 +72,123 @@ async function executeBobCLI(res, message, mode) {
     // Get Bob path from environment or use default
     const bobPath = process.env.BOB_PATH || '/opt/sevone-chat-app';
     
-    // Construct Bob command - escape single quotes in message
-    const escapedMessage = message.replace(/'/g, "'\\''");
-    const command = `bash -c "cd ${bobPath} && bob -y --chat-mode '${bobMode}' -p '${escapedMessage}'"`;
+    console.log(`Executing Bob command in ${bobPath} with mode ${bobMode}`);
 
-    console.log(`Executing Bob command: ${command}`);
+    // Spawn Bob process
+    const bobProcess = spawn('bash', ['-c', `cd ${bobPath} && bob -y --chat-mode '${bobMode}' -p '${message}'`], {
+      env: { ...process.env },
+      shell: true
+    });
 
-    // Execute Bob command with timeout
-    const bobProcess = exec(command, {
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-      timeout: 300000, // 5 minutes timeout
-      env: { ...process.env }
-    }, (error, stdout, stderr) => {
-      // This callback is called when the process completes
-      if (error) {
-        console.error('Bob execution error:', error);
-        
-        const errorMessage = error.killed ? 'Bob command timed out after 5 minutes' :
-                            `Bob process failed: ${error.message}`;
-        
+    let fullOutput = '';
+    let fullError = '';
+    let hasError = false;
+
+    // Collect stdout
+    bobProcess.stdout.on('data', (data) => {
+      const chunk = data.toString();
+      fullOutput += chunk;
+      console.log('Bob stdout:', chunk);
+    });
+
+    // Collect stderr
+    bobProcess.stderr.on('data', (data) => {
+      const chunk = data.toString();
+      fullError += chunk;
+      console.log('Bob stderr:', chunk);
+    });
+
+    // Handle process completion
+    bobProcess.on('close', (code) => {
+      console.log(`Bob process exited with code ${code}`);
+      console.log('Full output:', fullOutput);
+      
+      if (code !== 0) {
+        hasError = true;
         res.write(`data: ${JSON.stringify({
           type: 'error',
-          message: errorMessage,
-          error: stderr || error.message
+          message: `Bob process exited with code ${code}`,
+          error: fullError || fullOutput
         })}\n\n`);
         
         res.write(`data: ${JSON.stringify({
           type: 'bob_complete',
-          status: error.killed ? 'timeout' : 'error'
+          status: 'error'
         })}\n\n`);
         
         res.end();
-        reject(error);
+        reject(new Error(`Process exited with code ${code}`));
         return;
       }
 
-      // Success - process output
-      let cleanedOutput = stdout;
-      
-      // Remove ---output--- tags and extract content between them
-      const outputMatch = cleanedOutput.match(/---output---\s*([\s\S]*?)\s*---output---/);
+      // Extract content between ---output--- tags if present
+      let cleanedOutput = fullOutput;
+      const outputMatch = fullOutput.match(/---output---\s*([\s\S]*?)\s*---output---/);
       if (outputMatch) {
         cleanedOutput = outputMatch[1].trim();
       }
-      
-      // Send final response
+
+      // Send final response only
       res.write(`data: ${JSON.stringify({
         type: 'bob_response',
         id: Date.now(),
-        message: cleanedOutput || 'Bob completed successfully but returned no output.',
+        message: cleanedOutput || fullOutput || 'Bob completed successfully but returned no output.',
         mode: mode,
         timestamp: new Date().toISOString()
       })}\n\n`);
-      
+
+      // Send completion event
       res.write(`data: ${JSON.stringify({
         type: 'bob_complete',
         status: 'completed'
       })}\n\n`);
-      
+
       res.end();
       resolve(cleanedOutput);
     });
 
-    // Stream stdout in real-time (if available)
-    if (bobProcess.stdout) {
-      bobProcess.stdout.on('data', (data) => {
-        const chunk = data.toString();
-        res.write(`data: ${JSON.stringify({
-          type: 'bob_stream',
-          chunk: chunk,
-          timestamp: new Date().toISOString()
-        })}\n\n`);
-      });
-    }
+    // Handle process errors
+    bobProcess.on('error', (error) => {
+      console.error('Bob process error:', error);
+      
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        message: 'Failed to start Bob process',
+        error: error.message
+      })}\n\n`);
+      
+      res.write(`data: ${JSON.stringify({
+        type: 'bob_complete',
+        status: 'error'
+      })}\n\n`);
+      
+      res.end();
+      reject(error);
+    });
 
-    // Stream stderr in real-time (if available)
-    if (bobProcess.stderr) {
-      bobProcess.stderr.on('data', (data) => {
-        const chunk = data.toString();
-        console.error('Bob stderr:', chunk);
-        res.write(`data: ${JSON.stringify({
-          type: 'bob_stream',
-          chunk: chunk,
-          timestamp: new Date().toISOString(),
-          isError: false
-        })}\n\n`);
-      });
-    }
+    // Set timeout
+    const timeout = setTimeout(() => {
+      console.log('Bob process timeout - killing process');
+      bobProcess.kill();
+      
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        message: 'Bob command timed out after 5 minutes'
+      })}\n\n`);
+      
+      res.write(`data: ${JSON.stringify({
+        type: 'bob_complete',
+        status: 'timeout'
+      })}\n\n`);
+      
+      res.end();
+      reject(new Error('Timeout'));
+    }, 300000); // 5 minutes
+
+    // Clear timeout on process completion
+    bobProcess.on('close', () => {
+      clearTimeout(timeout);
+    });
   });
 }
 
