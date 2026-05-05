@@ -138,17 +138,26 @@ async function executeBobCLI(socket, message, mode) {
     // Handle process completion
     bobProcess.on('close', (code) => {
       if (code === 0) {
+        // Clean output by removing wrapper tags
+        let cleanedOutput = output;
+        
+        // Remove ---output--- tags and extract content between them
+        const outputMatch = cleanedOutput.match(/---output---\s*([\s\S]*?)\s*---output---/);
+        if (outputMatch) {
+          cleanedOutput = outputMatch[1].trim();
+        }
+        
         // Success - send final response
         socket.emit('bob_response', {
           id: Date.now(),
-          message: output || 'Bob completed successfully but returned no output.',
+          message: cleanedOutput || 'Bob completed successfully but returned no output.',
           mode: mode,
           timestamp: new Date().toISOString(),
           type: 'assistant'
         });
         
         socket.emit('bob_complete', { status: 'completed' });
-        resolve(output);
+        resolve(cleanedOutput);
       } else {
         // Error
         const errorMessage = `Bob process exited with code ${code}${errorOutput ? ': ' + errorOutput : ''}`;
